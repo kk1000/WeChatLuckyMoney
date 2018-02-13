@@ -111,10 +111,7 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
                     new Runnable() {
                         public void run() {
                             try {
-                                boolean openResult = openPacket();
-                                if (!openResult) {
-                                    mLuckyMoneyPicked = false;
-                                }
+                                openPacket();
                             } catch (Exception e) {
                                 mMutex = false;
                                 mLuckyMoneyPicked = false;
@@ -149,12 +146,10 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
         }
     }
 
-    private boolean openPacket() {
+    private void openPacket() {
         if (android.os.Build.VERSION.SDK_INT <= 23 && mUnpackNode != null) {
-            return mUnpackNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            mUnpackNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
         } else if (android.os.Build.VERSION.SDK_INT > 23 && currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY)) {
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            final AtomicBoolean atomicBoolean = new AtomicBoolean();
             Path path = new Path();
             path.moveTo(540, 1060);
             GestureDescription.Builder builder = new GestureDescription.Builder();
@@ -162,31 +157,21 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
             dispatchGesture(gestureDescription, new GestureResultCallback() {
                 @Override
                 public void onCompleted(GestureDescription gestureDescription) {
-                    Log.d("test", "onCompleted");
+                    Log.e("TAG", "onCompleted");
                     mMutex = false;
                     super.onCompleted(gestureDescription);
-                    atomicBoolean.set(true);
-                    countDownLatch.countDown();
                 }
 
                 @Override
                 public void onCancelled(GestureDescription gestureDescription) {
-                    Log.d("test", "onCancelled");
+                    Log.e("TAG", "onCancelled");
                     mMutex = false;
                     super.onCancelled(gestureDescription);
-                    atomicBoolean.set(false);
-                    countDownLatch.countDown();
+                    mLuckyMoneyPicked = false;
                 }
             }, null);
-            try {
-                countDownLatch.await(1, TimeUnit.SECONDS);
-                return atomicBoolean.get();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            return false;
         } else {
-            return false;
+            mLuckyMoneyPicked = false;
         }
     }
 
@@ -306,8 +291,14 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
             return;
         }
 
+        Log.e("TAG", "rootNodeInfo:" + rootNodeInfo);
+
         /* 戳开红包，红包还没抢完，遍历节点匹配“拆红包” */
         AccessibilityNodeInfo node2 = findOpenButton(this.rootNodeInfo);
+        Log.e("TAG", "node2:" + node2);
+        Log.e("TAG", "currentActivityName:" + currentActivityName);
+        Log.e("TAG", "currentActivityName contains:" + currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY));
+
         if (node2 != null && "android.widget.Button".equals(node2.getClassName()) && currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY)) {
             mUnpackNode = node2;
             mUnpackCount += 1;
