@@ -139,6 +139,7 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
                         Log.e("TAG", "onCancelled");
                         mMutex = false;
                         super.onCancelled(gestureDescription);
+                        mLuckyMoneyPicked = false;
                     }
                 }, null);
 
