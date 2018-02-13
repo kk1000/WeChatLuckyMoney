@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Rect;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Parcelable;
 import android.graphics.Path;
 import android.preference.PreferenceManager;
@@ -16,10 +17,14 @@ import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.util.DisplayMetrics;
+
 import xyz.monkeytong.hongbao.utils.HongbaoSignature;
 import xyz.monkeytong.hongbao.utils.PowerUtil;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class HongbaoService extends AccessibilityService implements SharedPreferences.OnSharedPreferenceChangeListener {
     private static final String WECHAT_DETAILS_EN = "Details";
@@ -51,21 +56,32 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
      * @param event 事件
      */
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) {
+    public void onAccessibilityEvent(final AccessibilityEvent event) {
         if (sharedPreferences == null) return;
 
         setCurrentActivityName(event);
 
         /* 检测通知消息 */
         if (!mMutex) {
-            if (sharedPreferences.getBoolean("pref_watch_notification", false) && watchNotifications(event)) return;
-            if (sharedPreferences.getBoolean("pref_watch_list", false) && watchList(event)) return;
+            if (sharedPreferences.getBoolean("pref_watch_notification", false) && watchNotifications(event)) {
+                return;
+            }
+            if (sharedPreferences.getBoolean("pref_watch_list", false) && watchList(event)) {
+                return;
+            }
             mListMutex = false;
         }
 
         if (!mChatMutex) {
             mChatMutex = true;
-            if (sharedPreferences.getBoolean("pref_watch_chat", false)) watchChat(event);
+            if (sharedPreferences.getBoolean("pref_watch_chat", false)) {
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        watchChat(event);
+                    }
+                }, 10);
+            }
             mChatMutex = false;
         }
     }
@@ -89,13 +105,16 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
             mLuckyMoneyPicked = true;
         }
         /* 如果戳开但还未领取 */
-        if (mUnpackCount == 1 && (mUnpackNode != null)) {
+        if (mUnpackCount > 0) {
             int delayFlag = sharedPreferences.getInt("pref_open_delay", 0) * 1000;
             new android.os.Handler().postDelayed(
                     new Runnable() {
                         public void run() {
                             try {
-                                openPacket();
+                                boolean openResult = openPacket();
+                                if (!openResult) {
+                                    mLuckyMoneyPicked = false;
+                                }
                             } catch (Exception e) {
                                 mMutex = false;
                                 mLuckyMoneyPicked = false;
@@ -104,42 +123,70 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
                         }
                     },
                     delayFlag);
-        }
-    }
-
-    private void openPacket() {
-        DisplayMetrics metrics = getResources().getDisplayMetrics();
-        float dpi = metrics.density;
-        if (android.os.Build.VERSION.SDK_INT <= 23) {
-            mUnpackNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
         } else {
-            if (android.os.Build.VERSION.SDK_INT > 23) {
-
+            if (android.os.Build.VERSION.SDK_INT > 23 && currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY)) {
                 Path path = new Path();
-                if (640 == dpi) {
-                    path.moveTo(720, 1575);
-                } else {
-                    path.moveTo(540, 1060);
-                }
+                path.moveTo(540, 1060);
                 GestureDescription.Builder builder = new GestureDescription.Builder();
-                GestureDescription gestureDescription = builder.addStroke(new GestureDescription.StrokeDescription(path, 450, 50)).build();
+                GestureDescription gestureDescription = builder.addStroke(new GestureDescription.StrokeDescription(path, 100, 50)).build();
                 dispatchGesture(gestureDescription, new GestureResultCallback() {
                     @Override
                     public void onCompleted(GestureDescription gestureDescription) {
-                        Log.d("test", "onCompleted");
+                        Log.e("TAG", "onCompleted");
                         mMutex = false;
                         super.onCompleted(gestureDescription);
                     }
 
                     @Override
                     public void onCancelled(GestureDescription gestureDescription) {
-                        Log.d("test", "onCancelled");
+                        Log.e("TAG", "onCancelled");
                         mMutex = false;
                         super.onCancelled(gestureDescription);
                     }
                 }, null);
 
             }
+        }
+    }
+
+    private boolean openPacket() {
+        if (android.os.Build.VERSION.SDK_INT <= 23 && mUnpackNode != null) {
+            return mUnpackNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        } else if (android.os.Build.VERSION.SDK_INT > 23 && currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY)) {
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            final AtomicBoolean atomicBoolean = new AtomicBoolean();
+            Path path = new Path();
+            path.moveTo(540, 1060);
+            GestureDescription.Builder builder = new GestureDescription.Builder();
+            GestureDescription gestureDescription = builder.addStroke(new GestureDescription.StrokeDescription(path, 100, 50)).build();
+            dispatchGesture(gestureDescription, new GestureResultCallback() {
+                @Override
+                public void onCompleted(GestureDescription gestureDescription) {
+                    Log.d("test", "onCompleted");
+                    mMutex = false;
+                    super.onCompleted(gestureDescription);
+                    atomicBoolean.set(true);
+                    countDownLatch.countDown();
+                }
+
+                @Override
+                public void onCancelled(GestureDescription gestureDescription) {
+                    Log.d("test", "onCancelled");
+                    mMutex = false;
+                    super.onCancelled(gestureDescription);
+                    atomicBoolean.set(false);
+                    countDownLatch.countDown();
+                }
+            }, null);
+            try {
+                countDownLatch.await(1, TimeUnit.SECONDS);
+                return atomicBoolean.get();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return false;
+        } else {
+            return false;
         }
     }
 
@@ -265,6 +312,11 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
             mUnpackNode = node2;
             mUnpackCount += 1;
             return;
+        }
+
+        if (node2 == null && android.os.Build.VERSION.SDK_INT > 23 && currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY)) {
+            mUnpackNode = null;
+            mUnpackCount += 1;
         }
 
         /* 戳开红包，红包已被抢完，遍历节点匹配“红包详情”和“手慢了” */
