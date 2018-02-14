@@ -112,7 +112,7 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
             mLuckyMoneyPicked = true;
         }
         /* 如果戳开但还未领取 */
-        if (mUnpackCount > 0) {
+        if (mUnpackCount >= 0) {
             int delayFlag = sharedPreferences.getInt("pref_open_delay", 0) * 1000;
             new android.os.Handler().postDelayed(
                     new Runnable() {
@@ -128,11 +128,11 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
                     },
                     delayFlag);
         } else {
-            if (android.os.Build.VERSION.SDK_INT > 23 && currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY)) {
+            if (android.os.Build.VERSION.SDK_INT > 23) {
                 Path path = new Path();
                 path.moveTo(540, 1060);
                 GestureDescription.Builder builder = new GestureDescription.Builder();
-                GestureDescription gestureDescription = builder.addStroke(new GestureDescription.StrokeDescription(path, 100, 50)).build();
+                GestureDescription gestureDescription = builder.addStroke(new GestureDescription.StrokeDescription(path, 150, 50)).build();
                 dispatchGesture(gestureDescription, new GestureResultCallback() {
                     @Override
                     public void onCompleted(GestureDescription gestureDescription) {
