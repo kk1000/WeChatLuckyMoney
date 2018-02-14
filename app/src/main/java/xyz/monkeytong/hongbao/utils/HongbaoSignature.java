@@ -17,35 +17,32 @@ public class HongbaoSignature {
             if (!"android.widget.LinearLayout".equals(hongbaoNode.getClassName())) return false;
 
             /* The text in the hongbao. Should mean something. */
-            if (hongbaoNode.getChildCount() > 0) {
-                String hongbaoContent = hongbaoNode.getChild(0).getText().toString();
-                if (hongbaoContent == null || "查看红包".equals(hongbaoContent)) return false;
+            String hongbaoContent = hongbaoNode.getChild(0).getText().toString();
+            if (hongbaoContent == null || "查看红包".equals(hongbaoContent)) return false;
                    /* Check the user's exclude words list. */
-                String[] excludeWordsArray = excludeWords.split(" +");
-                for (String word : excludeWordsArray) {
-                    if (word.length() > 0 && hongbaoContent.contains(word)) return false;
-                }
+            String[] excludeWordsArray = excludeWords.split(" +");
+            for (String word : excludeWordsArray) {
+                if (word.length() > 0 && hongbaoContent.contains(word)) return false;
+            }
 
             /* The container node for a piece of message. It should be inside the screen.
                 Or sometimes it will get opened twice while scrolling. */
-                AccessibilityNodeInfo messageNode = hongbaoNode.getParent();
+            AccessibilityNodeInfo messageNode = hongbaoNode.getParent();
 
-                Rect bounds = new Rect();
-                messageNode.getBoundsInScreen(bounds);
-                if (bounds.top < 0) return false;
+            Rect bounds = new Rect();
+            messageNode.getBoundsInScreen(bounds);
+            if (bounds.top < 0) return false;
 
             /* The sender and possible timestamp. Should mean something too. */
-                String[] hongbaoInfo = getSenderContentDescriptionFromNode(messageNode);
-                if (this.getSignature(hongbaoInfo[0], hongbaoContent, hongbaoInfo[1]).equals(this.toString()))
-                    return false;
+            String[] hongbaoInfo = getSenderContentDescriptionFromNode(messageNode);
+            if (this.getSignature(hongbaoInfo[0], hongbaoContent, hongbaoInfo[1]).equals(this.toString()))
+                return false;
 
             /* So far we make sure it's a valid new coming hongbao. */
-                this.sender = hongbaoInfo[0];
-                this.time = hongbaoInfo[1];
-                this.content = hongbaoContent;
-                return true;
-            }
-            return false;
+            this.sender = hongbaoInfo[0];
+            this.time = hongbaoInfo[1];
+            this.content = hongbaoContent;
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -88,6 +85,9 @@ public class HongbaoSignature {
                 CharSequence thisNodeText = thisNode.getText();
                 if (thisNodeText != null) result[1] = thisNodeText.toString();
             }
+        }
+        if ("unknownTime".equals(result[1])) {
+            result[1] = String.valueOf(System.currentTimeMillis());
         }
         return result;
     }

@@ -96,11 +96,18 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
 
         checkNodeInfo(event.getEventType());
 
+        Log.e("TAG", "mLuckyMoneyReceived:" + mLuckyMoneyReceived);
+        Log.e("TAG", "mLuckyMoneyPicked:" + mLuckyMoneyPicked);
+        Log.e("TAG", "mReceiveNode:" + mReceiveNode);
+        Log.e("TAG", "mUnpackCount:" + mUnpackCount);
         /* 如果已经接收到红包并且还没有戳开 */
         if (mLuckyMoneyReceived && !mLuckyMoneyPicked && (mReceiveNode != null)) {
+            final AccessibilityNodeInfo mReceiveNode = this.mReceiveNode;
             mMutex = true;
 
             mReceiveNode.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
+
+            Log.e("TAG", "performAction:" + HongbaoService.this.mReceiveNode);
             mLuckyMoneyReceived = false;
             mLuckyMoneyPicked = true;
         }
@@ -129,14 +136,14 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
                 dispatchGesture(gestureDescription, new GestureResultCallback() {
                     @Override
                     public void onCompleted(GestureDescription gestureDescription) {
-                        Log.e("TAG", "onCompleted");
+                        Log.e("TAG", "onCompleted watchChat");
                         mMutex = false;
                         super.onCompleted(gestureDescription);
                     }
 
                     @Override
                     public void onCancelled(GestureDescription gestureDescription) {
-                        Log.e("TAG", "onCancelled");
+                        Log.e("TAG", "onCancelled watchChat");
                         mMutex = false;
                         super.onCancelled(gestureDescription);
                         mLuckyMoneyPicked = false;
@@ -154,18 +161,18 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
             Path path = new Path();
             path.moveTo(540, 1060);
             GestureDescription.Builder builder = new GestureDescription.Builder();
-            GestureDescription gestureDescription = builder.addStroke(new GestureDescription.StrokeDescription(path, 100, 50)).build();
+            GestureDescription gestureDescription = builder.addStroke(new GestureDescription.StrokeDescription(path, 150, 50)).build();
             dispatchGesture(gestureDescription, new GestureResultCallback() {
                 @Override
                 public void onCompleted(GestureDescription gestureDescription) {
-                    Log.e("TAG", "onCompleted");
+                    Log.e("TAG", "onCompleted openPacket");
                     mMutex = false;
                     super.onCompleted(gestureDescription);
                 }
 
                 @Override
                 public void onCancelled(GestureDescription gestureDescription) {
-                    Log.e("TAG", "onCancelled");
+                    Log.e("TAG", "onCancelled openPacket");
                     mMutex = false;
                     super.onCancelled(gestureDescription);
                     mLuckyMoneyPicked = false;
@@ -284,7 +291,10 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
                 (currentActivityName.contains(WECHAT_LUCKMONEY_CHATTING_ACTIVITY)
                         || currentActivityName.contains(WECHAT_LUCKMONEY_GENERAL_ACTIVITY))) {
             String excludeWords = sharedPreferences.getString("pref_watch_exclude_words", "");
-            if (this.signature.generateSignature(node1, excludeWords)) {
+
+            boolean b = this.signature.generateSignature(node1, excludeWords);
+            Log.e("TAG", "signature:" + b);
+            if (b) {
                 mLuckyMoneyReceived = true;
                 mReceiveNode = node1;
                 Log.d("sig", this.signature.toString());
@@ -292,14 +302,8 @@ public class HongbaoService extends AccessibilityService implements SharedPrefer
             return;
         }
 
-        Log.e("TAG", "rootNodeInfo:" + rootNodeInfo);
-
         /* 戳开红包，红包还没抢完，遍历节点匹配“拆红包” */
         AccessibilityNodeInfo node2 = findOpenButton(this.rootNodeInfo);
-        Log.e("TAG", "node2:" + node2);
-        Log.e("TAG", "currentActivityName:" + currentActivityName);
-        Log.e("TAG", "currentActivityName contains:" + currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY));
-
         if (node2 != null && "android.widget.Button".equals(node2.getClassName()) && currentActivityName.contains(WECHAT_LUCKMONEY_RECEIVE_ACTIVITY)) {
             mUnpackNode = node2;
             mUnpackCount += 1;
